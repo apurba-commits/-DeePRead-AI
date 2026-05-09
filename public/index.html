@@ -1,1 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#020617">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>DeepRead AI</title>
 
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+
+<style>
+/* --- VARIABLES & RESET --- */
+:root {
+    --bg-dark: #020617;
+    --bg-panel: rgba(30, 41, 59, 0.85);
+    --primary: #6366f1;
+    --primary-glow: rgba(99, 102, 241, 0.4);
+    --accent: #22d3ee;
+    --accent-glow: rgba(34, 211, 238, 0.3);
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border: rgba(255, 255, 255, 0.1);
+    --glass: blur(20px);
+    --radius-lg: 24px;
+    --radius-md: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 10px 40px -10px rgba(0,0,0,0.6);
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: radial-gradient(circle at 50% -20%, #1e293b, var(--bg-dark));
+    color: var(--text-main);
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* --- UTILITIES --- */
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- UPLOAD SCREEN --- */
+.upload-container {
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    background-image: 
+        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 25%),
+        radial-gradient(circle at 90% 80%, rgba(34, 211, 238, 0.1) 0%, transparent 25%);
+}
+
+.upload-card {
+    background: var(--bg-panel);
+    backdrop-filter: var(--glass);
+    -webkit-backdrop-filter: var(--glass);
+    border: 1px solid var(--border);
+    padding: 32px 28px;
+    border-radius: var(--radius-lg);
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: var(--shadow);
+}
+
+.upload-icon {
+    font-size: 44px;
+    margin-bottom: 14px;
+    display: inline-block;
+    filter: drop-shadow(0 0 20px var(--primary-glow));
+}
+
+.upload-title { font-size: 22px; font-weight: 700; margin: 0 0 8px 0; }
+.upload-subtitle { color: var(--text-muted); margin: 0 0 28px 0; font-size: 14px; line-height: 1.5; }
+
+.btn-upload {
+    background: linear-gradient(135deg, var(--primary), #818cf8);
+    color: white;
+    padding: 14px 28px;
+    border-radius: 50px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px var(--primary-glow);
+    border: 1px solid rgba(255,255,255,0.15);
+    font-size: 15px;
+}
+.btn-upload:active { transform: scale(0.98); }
+
+/* Progress Bar for Large PDFs */
+.progress-container {
+    margin-top: 20px;
+    width: 100%;
+    display: none;
+}
+.progress-bar {
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    width: 0%;
+    transition: width 0.2s ease;
+    border-radius: 2px;
+}
+.progress-text {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
+/* --- READER LAYOUT --- */
+.reader-layout {
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* Top Bar */
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    padding-top: calc(12px + var(--safe-top));
+    z-index: 10;
+    background: linear-gradient(to bottom, rgba(2,6,23,0.9), transparent);
+}
+.nav-left { display: flex; align-items: center; gap: 12px; }
+.home-btn, .menu-btn { 
+    font-size: 20px; cursor: pointer; opacity: 0.85; transition: 0.2s; 
+    background: rgba(255,255,255,0.08); width: 40px; height: 40px; 
+    display: flex; align-items: center; justify-content: center; border-radius: 12px;
+    -webkit-tap-highlight-color: transparent;
+}
+.home-btn:active, .menu-btn:active { background: rgba(255,255,255,0.15); transform: scale(0.95); }
+.app-title { font-weight: 700; font-size: 17px; letter-spacing: -0.3px; }
+
+/* Content Area */
+.content-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 18px 16px;
+    padding-bottom: calc(20px + var(--safe-bottom));
+    display: flex;
+    justify-content: center;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+.content-area::-webkit-scrollbar { width: 4px; }
+.content-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+.page-content {
+    max-width: 680px;
+    width: 100%;
+    line-height: 1.85;
+    font-size: 17px;
+    color: #e2e8f0;
+    text-align: justify;
+    white-space: pre-wrap;
+    font-family: 'Merriweather', Georgia, serif;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    padding: 8px 4px;
+}
+
+/* Bottom Controls */
+.bottom-bar {
+    padding: 12px 16px;
+    padding-bottom: calc(12px + var(--safe-bottom));
+    display: flex;
+    justify-content: center;
+    z-index: 10;
+    background: linear-gradient(to top, rgba(2,6,23,0.95), transparent);
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(30, 41, 59, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 5px;
+    border-radius: 50px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.nav-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.15s;
+    font-size: 18px;
+    -webkit-tap-highlight-color: transparent;
+}
+.nav-btn:active { background: rgba(255,255,255,0.15); transform: scale(0.95); }
+.nav-btn:disabled { opacity: 0.25; cursor: not-allowed; transform: none !important; }
+
+.page-display {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+.page-input {
+    width: 36px;
+    background: transparent;
+    border: none;
+    color: white;
+    text-align: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    outline: none;
+    border-bottom: 1px solid transparent;
+    transition: 0.2s;
+    -moz-appearance: textfield;
+}
+.page-input::-webkit-outer-spin-button,
+.page-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.page-input:focus { border-bottom-color: var(--primary); }
+
+/* --- MENUS & OVERLAYS --- */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+@media (min-width: 768px) {
+    .overlay { align-items: center; }
+}
+.overlay.active { opacity: 1; pointer-events: all; }
+
+.menu-panel {
+    background: #1e293b;
+    padding: 20px 18px;
+    border-radius: 20px 20px 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
+    transform: translateY(20px);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (min-width: 768px) {
+    .menu-panel {
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        transform: scale(0.97);
+    }
+}
+.overlay.active .menu-panel { transform: translateY(0); }
+@media (min-width: 768px) {
+    .overlay.active .menu-panel { transform: scale(1); }
+}
+
+.menu-section-title {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    margin: 4px 0 12px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-weight: 600;
+    opacity: 0.8;
+}
+
+.menu-item {
+    padding: 14px 18px;
+    margin: 5px 0;
+    background: rgba(255,255,255,0.04);
+    border-radius: 14px;
+    cursor: pointer;
+    text-align: center;
+    font-weight: 500;
+    font-size: 15px;
+    transition: 0.18s;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    -webkit-tap-highlight-color: transparent;
+}
+.menu-item:active { 
+    background: rgba(255,255,255,0.12); 
+    transform: scale(0.985);
+}
+.menu-item.highlight {
+    background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(34,211,238,0.12));
+    border-color: rgba(99,102,241,0.3);
+}
+.menu-item.danger { color: #fca5a5; }
+
+.menu-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.12), transparent);
+    margin: 10px 0;
+}
+
+/* --- AI SCREEN --- */
+.ai-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-dark);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ai-screen.active { transform: translateY(0); }
+
+.ai-header {
+    padding: 16px 20px;
+    padding-top: calc(16px + var(--safe-top));
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: rgba(2, 6, 23, 0.85);
+    backdrop-filter: var(--glass);
+    -webkit-backdrop-filter: var(--glass);
+}
+.ai-title { 
+    font-weight: 600; 
+    font-size: 16px; 
+    display: flex; 
+    align-items: center; 
+    gap: 8px;
+    color: white;
+}
+.ai-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.ai-close {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.08);
+    font-size: 18px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.ai-close:active { background: rgba(255,255,255,0.15); }
+
+.ai-body {
+    flex: 1;
+    padding: 24px 20px;
+    padding-bottom: calc(24px + var(--safe-bottom));
+    overflow-y: auto;
+    font-family: 'Merriweather', Georgia, serif;
+    line-height: 1.85;
+    color: #e2e8f0;
+    max-width: 720px;
+    margin: 0 auto;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+.ai-body h1, .ai-body h2 { 
+    color: white; 
+    margin: 1.4em 0 0.8em; 
+    font-family: 'Inter', sans-serif;
+    font-size: 1.3em;
+    font-weight: 600;
+}
+.ai-body h3 {
+    color: var(--accent);
+    margin: 1.2em 0 0.6em;
+    font-family: 'Inter', sans-serif;
+    font-size: 1.1em;
+}
+.ai-body p { margin: 0 0 1.1em; }
+.ai-body ul { padding-left: 22px; margin: 0 0 1em; }
+.ai-body li { margin: 6px 0; }
+.ai-body strong { color: white; font-weight: 600; }
+
+/* Deep Meaning & Takeaways Styles */
+.deep-meaning-box {
+    background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(59,130,246,0.08));
+    border-left: 3px solid #22c55e;
+    padding: 14px 16px;
+    border-radius: 0 12px 12px 0;
+    margin: 16px 0;
+}
+.takeaways-box {
+    background: linear-gradient(135deg, rgba(249,115,22,0.12), rgba(236,72,153,0.08));
+    border-left: 3px solid #f97316;
+    padding: 14px 16px;
+    border-radius: 0 12px 12px 0;
+    margin: 16px 0;
+}
+.powerful-takeaway {
+    background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.15));
+    border: 1px solid rgba(139,92,246,0.4);
+    padding: 14px 18px;
+    border-radius: 14px;
+    margin: 18px 0;
+    text-align: center;
+    font-weight: 600;
+    font-style: italic;
+    color: #c4b5fd;
+}
+
+/* Loading Spinner */
+.spinner {
+    width: 36px; height: 36px;
+    border: 3px solid rgba(255,255,255,0.12);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 30px auto 16px;
+}
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+.loading-text {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-top: 8px;
+}
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: calc(80px + var(--safe-bottom));
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1e293b;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 300;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    max-width: 90%;
+    text-align: center;
+}
+.toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Responsive tweaks */
+@media (max-width: 380px) {
+    .upload-title { font-size: 20px; }
+    .page-content { font-size: 16px; line-height: 1.8; }
+    .control-group { gap: 6px; padding: 4px; }
+    .nav-btn { width: 36px; height: 36px; font-size: 17px; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- UPLOAD SCREEN -->
+<div class="upload-container" id="uploadScreen">
+    <div class="upload-card fade-in">
+        <div class="upload-icon">📚</div>
+        <h1 class="upload-title">DeepRead AI</h1>
+        <p class="upload-subtitle">Upload a PDF to read with AI-powered insights, translations & life lessons</p>
+        
+        <label class="btn-upload">
+            <span>📁</span> Select PDF File
+            <input type="file" id="pdfInput" accept=".pdf" style="display: none;">
+        </label>
+        
+        <!-- Progress Bar for Large PDFs -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-text" id="progressText">Loading pages...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- READER SCREEN -->
+<div class="reader-layout hidden" id="readerScreen">
+    <!-- Top Bar -->
+    <div class="topbar">
+        <div class="nav-left">
+            <div class="home-btn" onclick="App.goHome()" title="Home">🏠</div>
+            <div class="app-title">DeepRead</div>
+        </div>
+        <div class="menu-btn" onclick="UI.open('menu')" title="AI Tools">⋮</div>
+    </div>
+
+    <!-- Content -->
+    <div class="content-area">
+        <div class="page-content" id="pageText"></div>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div class="bottom-bar">
+        <div class="control-group">
+            <button class="nav-btn" id="btnPrev" onclick="App.nav.prev()" aria-label="Previous page">❮</button>
+            
+            <div class="page-display">
+                <input type="number" class="page-input" id="pageInput" min="1" onchange="App.nav.jumpToPage()" aria-label="Page number">
+                <span>/</span>
+                <span id="totalPages">1</span>
+            </div>
+
+            <button class="nav-btn" id="btnNext" onclick="App.nav.next()" aria-label="Next page">❯</button>
+        </div>
+    </div>
+</div>
+
+<!-- MAIN MENU (Bottom Sheet) -->
+<div class="overlay" id="menu" onclick="if(event.target === this) UI.closeMenus()">
+    <div class="menu-panel">
+        <div class="menu-section-title">✨ AI Tools</div>
+        
+        <div class="menu-item highlight" onclick="AI.run('deepmeaning')">
+            <span>💡</span> Deep Meaning
+        </div>
+        <div class="menu-item highlight" onclick="AI.run('takeaways')">
+            <span>🎯</span> Key Takeaways
+        </div>
+        <div class="menu-item" onclick="AI.run('summarize')">
+            <span>📝</span> Summarize Page
+        </div>
+        <div class="menu-item" onclick="UI.open('langMenu')">
+            <span>🌐</span> Translate
+        </div>
+        <div class="menu-item" onclick="UI.open('difficultyMenu')">
+            <span>📊</span> Adjust Difficulty
+        </div>
+        
+        <div class="menu-divider"></div>
+        
+        <div class="menu-item danger" onclick="App.goHome()">
+            <span>🚪</span> Exit Book
+        </div>
+    </div>
+</div>
+
+<!-- LANGUAGE MENU -->
+<div class="overlay" id="langMenu" onclick="if(event.target === this) UI.closeMenus()">
+    <div class="menu-panel">
+        <div class="menu-section-title">🌐 Translate To</div>
+        <div class="menu-item" onclick="AI.run('translate','Hindi')">🇮🇳 Hindi</div>
+        <div class="menu-item" onclick="AI.run('translate','Marathi')">🇮🇳 Marathi</div>
+        <div class="menu-item" onclick="AI.run('translate','Bengali')">🇮🇳 Bengali</div>
+        <div class="menu-item" onclick="AI.run('translate','Tamil')">🇮🇳 Tamil</div>
+        <div class="menu-item" onclick="AI.run('translate','Telugu')">🇮🇳 Telugu</div>
+        <div class="menu-item" onclick="AI.run('translate','Spanish')">🇪🇸 Spanish</div>
+        <div class="menu-item" onclick="AI.run('translate','French')">🇫🇷 French</div>
+    </div>
+</div>
+
+<!-- DIFFICULTY MENU -->
+<div class="overlay" id="difficultyMenu" onclick="if(event.target === this) UI.closeMenus()">
+    <div class="menu-panel">
+        <div class="menu-section-title">📚 English Level</div>
+        <div class="menu-item" onclick="AI.run('difficulty','Beginner (A1-A2)')">🌱 Beginner</div>
+        <div class="menu-item" onclick="AI.run('difficulty','Intermediate (B1-B2)')">🌿 Intermediate</div>
+        <div class="menu-item" onclick="AI.run('difficulty','Advanced (C1)')">🌳 Advanced</div>
+        <div class="menu-item" onclick="AI.run('difficulty','Expert (C2)')">🏔️ Expert</div>
+    </div>
+</div>
+
+<!-- AI RESULT SCREEN -->
+<div class="ai-screen" id="aiScreen">
+    <div class="ai-header">
+        <div>
+            <div class="ai-title" id="aiTitle">🤖 AI Assistant</div>
+            <div class="ai-subtitle" id="aiSubtitle">Page <span id="aiPageNum">1</span></div>
+        </div>
+        <div class="ai-close" onclick="UI.closeAI()" aria-label="Close">✕</div>
+    </div>
+    <div class="ai-body" id="aiOut"></div>
+</div>
+
+<!-- Toast Notification -->
+<div class="toast" id="toast"></div>
+
+<script>
+// PDF.js worker setup
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+
+/* ===============================
+   APPLICATION STATE
+================================= */
+const State = {
+    pages: [],
+    index: 0,
+    fileName: '',
+    pdfDoc: null,
+    isLoading: false
+};
+
+/* ===============================
+   UI MANAGEMENT
+================================= */
+const UI = {
+    open(id){
+        document.querySelectorAll(".overlay").forEach(o => o.classList.remove("active"));
+        setTimeout(() => {
+            document.getElementById(id).classList.add("active");
+        }, 10);
+    },
+    closeAll(){
+        document.querySelectorAll(".overlay").forEach(o => o.classList.remove("active"));
+    },
+    closeAI(){
+        document.getElementById("aiScreen").classList.remove("active");
+    },
+    showToast(msg, duration = 2500){
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), duration);
+    },
+    updateProgress(current, total, text = ''){
+        const container = document.getElementById('progressContainer');
+        const fill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        
+        container.style.display = 'block';
+        const percent = Math.round((current / total) * 100);
+        fill.style.width = percent + '%';
+        progressText.textContent = text || `Loading page ${current} of ${total}...`;
+        
+        if(current >= total) {
+            setTimeout(() => {
+                container.style.display = 'none';
+                fill.style.width = '0%';
+            }, 500);
+        }
+    }
+};
+
+document.querySelectorAll(".overlay").forEach(overlay => {
+    overlay.addEventListener("click", e => {
+        if(e.target.classList.contains("overlay")) {
+            overlay.classList.remove("active");
+        }
+    });
+});
+
+document.addEventListener("keydown", e => {
+    if(e.key === "Escape"){
+        UI.closeAll();
+        UI.closeAI();
+    }
+    if(document.getElementById("readerScreen").classList.contains("hidden")) return;
+    if(e.key === "ArrowLeft") App.nav.prev();
+    if(e.key === "ArrowRight") App.nav.next();
+});
+
+let lastTouchEnd = 0;
+document.addEventListener('touchend', function (event) {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) event.preventDefault();
+    lastTouchEnd = now;
+}, false);
+
+/* ===============================
+   CORE APP LOGIC
+================================= */
+const App = {
+    async loadPDF(file){
+        if(State.isLoading) return;
+        State.isLoading = true;
+        
+        State.fileName = file.name.replace('.pdf', '');
+        UI.showToast(`Loading "${State.fileName}"...`);
+        
+        try {
+            const buffer = await file.arrayBuffer();
+            const loadingTask = pdfjsLib.getDocument(new Uint8Array(buffer));
+            
+            State.pdfDoc = await loadingTask.promise;
+            const totalPages = State.pdfDoc.numPages;
+            
+            UI.showToast(`Found ${totalPages} pages - extracting text...`);
+            State.pages = [];
+            
+            for(let pageNum = 1; pageNum <= totalPages; pageNum++){
+                const page = await State.pdfDoc.getPage(pageNum);
+                const content = await page.getTextContent();
+                const text = content.items.map(x => x.str).join(" ").trim();
+                State.pages.push(text || "[No text on this page]");
+                
+                if(pageNum % 5 === 0 || totalPages < 10) {
+                    UI.updateProgress(pageNum, totalPages);
+                }
+                if(pageNum % 20 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+            }
+            
+            UI.updateProgress(totalPages, totalPages, "✓ Ready!");
+            
+            if(State.pages.length === 0) {
+                throw new Error("No readable text found in this PDF");
+            }
+
+            State.index = 0;
+            this.render();
+            
+            document.getElementById("uploadScreen").style.display = "none";
+            const reader = document.getElementById("readerScreen");
+            reader.classList.remove("hidden");
+            reader.classList.add("fade-in");
+            
+            UI.showToast(`✓ "${State.fileName}" loaded (${State.pages.length} pages)`);
+            
+        } catch(err) {
+            console.error("PDF Load Error:", err);
+            UI.showToast(`Error: ${err.message}`, 5000);
+            document.getElementById("pdfInput").value = "";
+        } finally {
+            State.isLoading = false;
+        }
+    },
+
+    render(){
+        const text = State.pages[State.index] || "";
+        const pageEl = document.getElementById("pageText");
+        
+        pageEl.style.transition = "opacity 0.15s";
+        pageEl.style.opacity = 0;
+        
+        setTimeout(() => {
+            pageEl.innerText = text;
+            pageEl.style.opacity = 1;
+        }, 120);
+
+        document.getElementById("pageInput").value = State.index + 1;
+        document.getElementById("totalPages").innerText = State.pages.length;
+        document.getElementById("btnPrev").disabled = State.index === 0;
+        document.getElementById("btnNext").disabled = State.index === State.pages.length - 1;
+    },
+
+    nav: {
+        next(){
+            if(State.index < State.pages.length - 1){
+                State.index++;
+                App.render();
+                if(navigator.vibrate) navigator.vibrate(8);
+            }
+        },
+        prev(){
+            if(State.index > 0){
+                State.index--;
+                App.render();
+                if(navigator.vibrate) navigator.vibrate(8);
+            }
+        },
+        jumpToPage(){
+            const input = document.getElementById("pageInput");
+            const val = parseInt(input.value);
+            if(val >= 1 && val <= State.pages.length){
+                State.index = val - 1;
+                App.render();
+                input.blur();
+            } else {
+                input.value = State.index + 1;
+                UI.showToast("Enter a valid page number");
+            }
+        }
+    },
+
+    goHome(){
+        if(confirm("Return to home? Your reading progress will be reset.")){
+            if(State.pdfDoc && typeof State.pdfDoc.destroy === 'function') {
+                State.pdfDoc.destroy();
+            }
+            State.pages = [];
+            State.index = 0;
+            State.fileName = '';
+            State.pdfDoc = null;
+            
+            document.getElementById("readerScreen").classList.add("hidden");
+            document.getElementById("uploadScreen").style.display = "flex";
+            document.getElementById("pdfInput").value = "";
+            
+            UI.closeAI();
+            UI.closeAll();
+        }
+    }
+};
+
+document.getElementById("pdfInput").addEventListener("change", e => {
+    if(e.target.files[0]) {
+        const file = e.target.files[0];
+        if(file.type !== "application/pdf") {
+            UI.showToast("Please select a PDF file");
+            e.target.value = "";
+            return;
+        }
+        if(file.size > 50 * 1024 * 1024) {
+            if(!confirm(`This PDF is ${Math.round(file.size/1024/1024)}MB. Large files may load slowly on mobile. Continue?`)) {
+                e.target.value = "";
+                return;
+            }
+        }
+        App.loadPDF(file);
+    }
+});
+
+/* ===============================
+   AI ENGINE — calls Netlify proxy
+   API key is stored securely in
+   Netlify environment variables
+================================= */
+const AI = {
+    buildPrompt(type, value, text){
+        const pageContext = `[Page ${State.index + 1} of "${State.fileName || 'Book'}" - ${State.pages.length} pages total]\n\n`;
+        
+        switch(type){
+            case "deepmeaning":
+                return `${pageContext}You are a wise life coach and literary interpreter. Analyze this text and explain its DEEP MEANING for real life.
+
+GUIDELINES:
+• Use simple, relatable real-life examples (work, relationships, personal growth)
+• Connect to human emotions: hope, fear, courage, love, resilience
+• Make abstract ideas concrete - show "what this looks like in daily life"
+• Focus on practical wisdom, not just literary analysis
+• Keep tone warm, encouraging, and insightful
+
+Format your response in clean HTML with:
+- A brief intro connecting the text to life
+- 2-3 sections with <h3> headings for key insights
+- Real-life scenarios in <em>italics</em>
+- End with a reflective question
+
+TEXT TO ANALYZE:
+${text}`;
+
+            case "takeaways":
+                return `${pageContext}You are a personal development expert. Extract practical life lessons from this text.
+
+FORMAT EXACTLY AS FOLLOWS (clean HTML only, no markdown):
+
+<div class="takeaways-box">
+<h3>🌱 3 Simple Life Lessons</h3>
+<ul>
+<li><strong>Lesson 1:</strong> [Clear, actionable insight in 1 sentence]</li>
+<li><strong>Lesson 2:</strong> [Clear, actionable insight in 1 sentence]</li>
+<li><strong>Lesson 3:</strong> [Clear, actionable insight in 1 sentence]</li>
+</ul>
+</div>
+
+<div class="powerful-takeaway">
+✨ "[One powerful, memorable one-line takeaway that captures the essence]"
+</div>
+
+REQUIREMENTS:
+• Lessons must be practical and immediately applicable
+• Use simple language anyone can understand
+• Focus on mindset, actions, or perspectives
+• The one-liner should be quotable and inspiring
+
+TEXT TO ANALYZE:
+${text}`;
+
+            case "summarize":
+                return `${pageContext}You are a professional book editor. Create a clear, structured summary of this page in clean HTML.
+
+Requirements:
+• Use <h2> for main idea, <h3> for key points
+• Keep it concise but complete
+• No markdown, no AI commentary, just clean HTML
+• Maintain the tone and intent of the original
+
+TEXT:
+${text}`;
+
+            case "translate":
+                return `Translate the following text into ${value}. Maintain the book's structure and tone. Return clean HTML only, no markdown or commentary.
+
+TEXT:
+${text}`;
+
+            case "difficulty":
+                return `Rewrite this text for ${value} English level. Do NOT summarize or change meaning. Keep all key ideas, but use simpler vocabulary and sentence structure appropriate for the level. Use professional book-style formatting. Return HTML only.
+
+TEXT:
+${text}`;
+        }
+    },
+
+    async run(type, value = null){
+        UI.closeAll();
+        const text = State.pages[State.index];
+        
+        if(!text || text.trim().length < 20) {
+            UI.showToast("Not enough text on this page for AI analysis");
+            return;
+        }
+
+        const aiScreen = document.getElementById("aiScreen");
+        const aiOut = document.getElementById("aiOut");
+        const aiTitle = document.getElementById("aiTitle");
+        const aiSubtitle = document.getElementById("aiSubtitle");
+        
+        const titles = {
+            'deepmeaning': '💡 Deep Meaning',
+            'takeaways': '🎯 Key Takeaways', 
+            'summarize': '📝 Summary',
+            'translate': '🌐 Translation',
+            'difficulty': '📚 Simplified'
+        };
+        aiTitle.innerHTML = titles[type] || '🤖 AI Assistant';
+        aiSubtitle.innerHTML = `Page <span id="aiPageNum">${State.index + 1}</span> of ${State.pages.length} • ${State.fileName || 'Book'}`;
+        
+        aiScreen.classList.add("active");
+        aiOut.innerHTML = `
+            <div class="spinner"></div>
+            <div class="loading-text">Thinking deeply about your text...</div>
+            <div style="text-align:center; color:var(--text-muted); font-size:13px; margin-top:4px;">This may take 15-30 seconds</div>
+        `;
+
+        const prompt = this.buildPrompt(type, value, text);
+
+        try {
+            // ✅ Calls our secure Netlify serverless proxy — no API key in browser
+            const res = await fetch("/api/ai", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    messages: [{ role: "user", content: prompt }],
+                    temperature: 0.7,
+                    max_tokens: 1200
+                })
+            });
+
+            if(!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `Server error: ${res.status}`);
+            }
+
+            const data = await res.json();
+            let output = data?.choices?.[0]?.message?.content || "No response generated.";
+            
+            output = output.replace(/```html\s*/g, "").replace(/```\s*/g, "");
+            
+            aiOut.style.transition = "opacity 0.25s";
+            aiOut.style.opacity = 0;
+            
+            setTimeout(() => {
+                aiOut.innerHTML = output;
+                aiOut.style.opacity = 1;
+                aiOut.querySelectorAll('.deep-meaning-box, .takeaways-box, .powerful-takeaway').forEach(el => {
+                    el.style.animation = "fadeIn 0.4s ease-out";
+                });
+            }, 200);
+
+            UI.showToast("✓ AI response ready");
+
+        } catch(err) {
+            console.error("AI Error:", err);
+            aiOut.innerHTML = `
+                <div style="text-align:center; padding:20px;">
+                    <div style="font-size:32px; margin-bottom:12px;">⚠️</div>
+                    <div style="color:#fca5a5; font-weight:500; margin-bottom:8px;">AI Unavailable</div>
+                    <div style="color:var(--text-muted); font-size:14px; line-height:1.5;">
+                        ${err.message}<br><br>
+                        <small>• Check your internet connection<br>
+                        • Try again in a moment</small>
+                    </div>
+                </div>
+            `;
+            UI.showToast("AI request failed", 4000);
+        }
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    if(window.innerWidth < 768) {
+        document.querySelectorAll('.nav-btn, .menu-item, .btn-upload').forEach(el => {
+            el.style.minHeight = '44px';
+            el.style.minWidth = '44px';
+        });
+    }
+});
+</script>
+
+</body>
+</html>
